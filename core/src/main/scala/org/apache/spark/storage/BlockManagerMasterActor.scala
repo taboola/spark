@@ -39,11 +39,10 @@ private[spark]
 class BlockManagerMasterActor(val isLocal: Boolean, conf: SparkConf) extends Actor with Logging {
 
   // Mapping from block manager id to the block manager's information.
-  private val blockManagerInfo =
-    new mutable.HashMap[BlockManagerId, BlockManagerMasterActor.BlockManagerInfo]
+  @volatile private var blockManagerInfo = Map[BlockManagerId, BlockManagerMasterActor.BlockManagerInfo]()
 
   // Mapping from executor ID to block manager ID.
-  private val blockManagerIdByExecutor = new mutable.HashMap[String, BlockManagerId]
+  @volatile private var blockManagerIdByExecutor = Map[String, BlockManagerId]()
 
   // Mapping from block id to the set of block managers that have the block.
   private val blockLocations = new JHashMap[BlockId, mutable.HashSet[BlockManagerId]]
@@ -147,10 +146,11 @@ class BlockManagerMasterActor(val isLocal: Boolean, conf: SparkConf) extends Act
     val info = blockManagerInfo(blockManagerId)
 
     // Remove the block manager from blockManagerIdByExecutor.
-    blockManagerIdByExecutor -= blockManagerId.executorId
+    blockManagerIdByExecutor = blockManagerIdByExecutor - blockManagerId.executorId
 
     // Remove it from blockManagerInfo and remove all the blocks.
-    blockManagerInfo.remove(blockManagerId)
+    blockManagerInfo = blockManagerInfo - blockManagerId
+    
     val iterator = info.blocks.keySet.iterator
     while (iterator.hasNext) {
       val blockId = iterator.next
@@ -231,10 +231,11 @@ class BlockManagerMasterActor(val isLocal: Boolean, conf: SparkConf) extends Act
           logError("Got two different block manager registrations on " + id.executorId)
           System.exit(1)
         case None =>
-          blockManagerIdByExecutor(id.executorId) = id
+          blockManagerIdByExecutor = blockManagerIdByExecutor + (id.executorId -> id)
       }
-      blockManagerInfo(id) = new BlockManagerMasterActor.BlockManagerInfo(
-        id, System.currentTimeMillis(), maxMemSize, slaveActor)
+      
+      val info = new BlockManagerMasterActor.BlockManagerInfo(id, System.currentTimeMillis(), maxMemSize, slaveActor)
+      blockManagerInfo = blockManagerInfo + (id -> info)
     }
   }
 
