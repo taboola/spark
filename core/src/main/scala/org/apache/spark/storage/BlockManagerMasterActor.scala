@@ -223,6 +223,9 @@ class BlockManagerMasterActor(val isLocal: Boolean, conf: SparkConf) extends Act
   }
 
   private def register(id: BlockManagerId, maxMemSize: Long, slaveActor: ActorRef) {
+    
+    logInfo("Registering block manager %s with %s RAM".format(id.hostPort, Utils.bytesToString(maxMemSize)))
+    
     if (!blockManagerInfo.contains(id)) {
       blockManagerIdByExecutor.get(id.executorId) match {
         case Some(manager) =>
